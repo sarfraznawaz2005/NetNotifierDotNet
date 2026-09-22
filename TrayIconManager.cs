@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Drawing;
 using System.Reflection;
 using System.Windows;
@@ -35,7 +34,13 @@ public class TrayIconManager : IDisposable
             ContextMenuStrip = BuildContextMenu(),
         };
 
-        _notifyIcon.DoubleClick += (_, _) => ShowSettings();
+        // Right-click already opens the ContextMenuStrip by default. Left-click instead
+        // runs a fresh check and pops a balloon with the result.
+        _notifyIcon.MouseUp += (_, e) =>
+        {
+            if (e.Button == MouseButtons.Left)
+                _ = CheckAndNotifyAsync();
+        };
 
         _app.StatusUpdated += OnStatusUpdated;
     }
@@ -51,18 +56,27 @@ public class TrayIconManager : IDisposable
     private ContextMenuStrip BuildContextMenu()
     {
         var menu = new ContextMenuStrip();
+
+        var checkNowItem = new ToolStripMenuItem("Check Now", null, (_, _) => _ = CheckAndNotifyAsync())
+        {
+            Font = new Font(menu.Font, System.Drawing.FontStyle.Bold),
+        };
+        menu.Items.Add(checkNowItem);
+
         menu.Items.Add("Settings", null, (_, _) => ShowSettings());
-        menu.Items.Add("Check Now", null, (_, _) => _ = ManualCheckAsync());
         menu.Items.Add("Reset Statistics", null, (_, _) => ResetStatistics());
         menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add("Restart", null, (_, _) => RestartApp());
         menu.Items.Add("Exit", null, (_, _) => ExitApp());
         return menu;
     }
 
-    private async Task ManualCheckAsync()
+    private async Task CheckAndNotifyAsync()
     {
-        await Task.Run(() => _app.TestConnectionAsync());
+        var status = await _app.CheckNowAsync();
+        if (status == ConnectionStatus.Online)
+            _notifyIcon.ShowBalloonTip(3000, "NetNotifier", "You are online.", ToolTipIcon.Info);
+        else
+            _notifyIcon.ShowBalloonTip(3000, "NetNotifier", "You are offline.", ToolTipIcon.Warning);
     }
 
     private void ResetStatistics()
@@ -83,14 +97,6 @@ public class TrayIconManager : IDisposable
 
         _settingsWindow = new SettingsWindow(_app);
         _settingsWindow.Show();
-    }
-
-    private static void RestartApp()
-    {
-        var exePath = Environment.ProcessPath;
-        if (exePath != null)
-            Process.Start(exePath);
-        Application.Current.Shutdown();
     }
 
     private void ExitApp()

@@ -51,6 +51,13 @@ public class NetNotifierApp : IDisposable
         return await _connectivityChecker.CheckHttpMultiAsync(Settings.TestUrls, Settings.HttpTimeoutMs, CancellationToken.None);
     }
 
+    /// <summary>Runs a real check (updates status, stats, and the tray icon) and returns the resulting status.</summary>
+    public async Task<ConnectionStatus> CheckNowAsync()
+    {
+        await CheckConnectionAsync();
+        return LastStatus;
+    }
+
     public void ResetStats()
     {
         DisconnectsToday = 0;
