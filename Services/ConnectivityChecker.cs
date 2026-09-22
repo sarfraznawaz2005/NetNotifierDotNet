@@ -31,28 +31,31 @@ public class ConnectivityChecker
         }
     }
 
-    public async Task<bool> CheckHttpMultiAsync(IEnumerable<string> urls, int timeoutMs, CancellationToken cancellationToken)
+    public async Task<(bool Success, long? LatencyMs)> CheckHttpMultiAsync(IEnumerable<string> urls, int timeoutMs, CancellationToken cancellationToken)
     {
         foreach (var url in urls)
         {
-            if (await CheckHttpAsync(url, timeoutMs, cancellationToken))
-                return true;
+            var result = await CheckHttpAsync(url, timeoutMs, cancellationToken);
+            if (result.Success)
+                return result;
         }
-        return false;
+        return (false, null);
     }
 
-    private async Task<bool> CheckHttpAsync(string url, int timeoutMs, CancellationToken cancellationToken)
+    private async Task<(bool Success, long? LatencyMs)> CheckHttpAsync(string url, int timeoutMs, CancellationToken cancellationToken)
     {
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         try
         {
             using var timeoutCts = new CancellationTokenSource(timeoutMs);
             using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
             using var response = await _httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, linkedCts.Token);
-            return response.IsSuccessStatusCode;
+            stopwatch.Stop();
+            return (response.IsSuccessStatusCode, stopwatch.ElapsedMilliseconds);
         }
         catch
         {
-            return false;
+            return (false, null);
         }
     }
 }

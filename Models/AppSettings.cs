@@ -3,7 +3,7 @@ namespace NetNotifier.Models;
 public class AppSettings
 {
     public int IntervalMs { get; set; } = Defaults.DefaultIntervalMs;
-    public List<string> TestUrls { get; set; } = new() { "https://www.google.com", "https://www.bing.com" };
+    public List<string> TestUrls { get; set; } = new() { "http://www.gstatic.com/generate_204", "http://www.msftconnecttest.com/connecttest.txt" };
     public bool VoiceAlerts { get; set; } = true;
     public int HttpTimeoutMs { get; set; } = Defaults.HttpTimeoutDefaultMs;
     public bool StartWithWindows { get; set; } = false;

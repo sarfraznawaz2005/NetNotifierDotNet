@@ -25,6 +25,7 @@ public class NetNotifierApp : IDisposable
     public int DisconnectsToday { get; private set; }
     public int TotalChecks { get; private set; }
     public int SuccessfulChecks { get; private set; }
+    public long? LastLatencyMs { get; private set; }
 
     /// <summary>Raised on the check thread after every check. Subscribers must marshal to the UI thread themselves.</summary>
     public event Action? StatusUpdated;
@@ -52,7 +53,8 @@ public class NetNotifierApp : IDisposable
 
     public async Task<bool> TestConnectionAsync()
     {
-        return await _connectivityChecker.CheckHttpMultiAsync(Settings.TestUrls, Settings.HttpTimeoutMs, CancellationToken.None);
+        var result = await _connectivityChecker.CheckHttpMultiAsync(Settings.TestUrls, Settings.HttpTimeoutMs, CancellationToken.None);
+        return result.Success;
     }
 
     /// <summary>Runs a real check (updates status, stats, and the tray icon) and returns the resulting status.</summary>
@@ -117,10 +119,14 @@ public class NetNotifierApp : IDisposable
     private async Task<ConnectionStatus> DetermineConnectionStatusAsync()
     {
         if (!_connectivityChecker.HasConnectedNetworkInterface())
+        {
+            LastLatencyMs = null;
             return ConnectionStatus.Offline;
+        }
 
-        var online = await _connectivityChecker.CheckHttpMultiAsync(Settings.TestUrls, Settings.HttpTimeoutMs, CancellationToken.None);
-        return online ? ConnectionStatus.Online : ConnectionStatus.Offline;
+        var result = await _connectivityChecker.CheckHttpMultiAsync(Settings.TestUrls, Settings.HttpTimeoutMs, CancellationToken.None);
+        LastLatencyMs = result.Success ? result.LatencyMs : null;
+        return result.Success ? ConnectionStatus.Online : ConnectionStatus.Offline;
     }
 
     private void HandleStatusChange(ConnectionStatus newStatus, ConnectionStatus oldStatus)

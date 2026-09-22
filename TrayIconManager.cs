@@ -153,9 +153,11 @@ public class TrayIconManager : IDisposable
             var uptime = _app.Uptime;
             var ip = _app.GetPublicIp();
             var availability = _app.AvailabilityPercent.ToString("F1");
+            var latency = _app.LastLatencyMs.HasValue ? $"{_app.LastLatencyMs}ms" : "-";
 
             _notifyIcon.Text = Truncate(
                 $"IP:\t{ip}\n" +
+                $"Latency:\t{latency}\n" +
                 $"Uptime:\t{uptime:hh\\:mm\\:ss}\n" +
                 $"Drops:\t{_app.DisconnectsToday}\n" +
                 $"Up:\t{availability}%", 127);
