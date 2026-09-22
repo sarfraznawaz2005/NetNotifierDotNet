@@ -54,6 +54,16 @@ public partial class SettingsWindow : Window
             return;
         }
 
+        var badUrls = urls.Where(u => !Uri.TryCreate(u, UriKind.Absolute, out var parsed) ||
+                                       (parsed.Scheme != Uri.UriSchemeHttp && parsed.Scheme != Uri.UriSchemeHttps)).ToList();
+        if (badUrls.Count > 0)
+        {
+            MessageBox.Show(
+                "Each test URL must start with http:// or https://. Invalid: " + string.Join(", ", badUrls),
+                "Invalid Input", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
         var newSettings = new AppSettings
         {
             IntervalMs = intervalMs,
@@ -63,7 +73,14 @@ public partial class SettingsWindow : Window
         };
 
         _app.ApplySettings(newSettings);
-        StartupService.SetEnabled(StartWithWindowsCheckBox.IsChecked == true);
+
+        var startupApplied = StartupService.SetEnabled(StartWithWindowsCheckBox.IsChecked == true);
+        if (!startupApplied)
+        {
+            MessageBox.Show(
+                "Can't enable Start with Windows while running from source (dotnet run). Build the app first (build.bat), then set this from the built exe.",
+                "Start with Windows", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
 
         Close();
     }

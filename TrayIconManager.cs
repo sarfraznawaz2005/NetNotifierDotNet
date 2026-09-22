@@ -17,6 +17,7 @@ public class TrayIconManager : IDisposable
     private readonly Icon _noInternetIcon;
 
     private SettingsWindow? _settingsWindow;
+    private bool _checkInProgress;
 
     public TrayIconManager(NetNotifierApp app)
     {
@@ -43,6 +44,7 @@ public class TrayIconManager : IDisposable
         };
 
         _app.StatusUpdated += OnStatusUpdated;
+        _app.StatusChanged += OnStatusChanged;
     }
 
     private static Icon LoadIcon(string fileName)
@@ -63,6 +65,7 @@ public class TrayIconManager : IDisposable
         };
         menu.Items.Add(checkNowItem);
 
+        menu.Items.Add("Copy IP", null, (_, _) => CopyIp());
         menu.Items.Add("Settings", null, (_, _) => ShowSettings());
         menu.Items.Add("Reset Statistics", null, (_, _) => ResetStatistics());
         menu.Items.Add(new ToolStripSeparator());
@@ -72,11 +75,29 @@ public class TrayIconManager : IDisposable
 
     private async Task CheckAndNotifyAsync()
     {
-        var status = await _app.CheckNowAsync();
-        if (status == ConnectionStatus.Online)
-            _notifyIcon.ShowBalloonTip(3000, "NetNotifier", "You are online.", ToolTipIcon.Info);
-        else
-            _notifyIcon.ShowBalloonTip(3000, "NetNotifier", "You are offline.", ToolTipIcon.Warning);
+        // Ignore rapid repeat clicks instead of piling up duplicate balloons that would
+        // just repeat whatever the first, still-running check eventually finds.
+        if (_checkInProgress) return;
+        _checkInProgress = true;
+        try
+        {
+            var status = await _app.CheckNowAsync();
+            if (status == ConnectionStatus.Online)
+                _notifyIcon.ShowBalloonTip(3000, "NetNotifier", "You are online.", ToolTipIcon.Info);
+            else
+                _notifyIcon.ShowBalloonTip(3000, "NetNotifier", "You are offline.", ToolTipIcon.Warning);
+        }
+        finally
+        {
+            _checkInProgress = false;
+        }
+    }
+
+    private void CopyIp()
+    {
+        var ip = _app.GetPublicIp();
+        if (ip != "N/A")
+            System.Windows.Clipboard.SetText(ip);
     }
 
     private void ResetStatistics()
@@ -111,6 +132,18 @@ public class TrayIconManager : IDisposable
         Application.Current?.Dispatcher.Invoke(UpdateTrayDisplay);
     }
 
+    private void OnStatusChanged(ConnectionStatus status)
+    {
+        // NetNotifierApp raises this from a background thread/timer.
+        Application.Current?.Dispatcher.Invoke(() =>
+        {
+            if (status == ConnectionStatus.Online)
+                _notifyIcon.ShowBalloonTip(3000, "NetNotifier", "Connection restored.", ToolTipIcon.Info);
+            else
+                _notifyIcon.ShowBalloonTip(3000, "NetNotifier", "Connection lost.", ToolTipIcon.Warning);
+        });
+    }
+
     private void UpdateTrayDisplay()
     {
         if (_app.LastStatus == ConnectionStatus.Online)
@@ -140,6 +173,7 @@ public class TrayIconManager : IDisposable
     public void Dispose()
     {
         _app.StatusUpdated -= OnStatusUpdated;
+        _app.StatusChanged -= OnStatusChanged;
         _notifyIcon.Visible = false;
         _notifyIcon.Dispose();
         _onlineIcon.Dispose();

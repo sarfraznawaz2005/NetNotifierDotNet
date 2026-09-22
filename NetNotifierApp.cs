@@ -17,6 +17,7 @@ public class NetNotifierApp : IDisposable
     private bool _firstRun = true;
     private int _statusChangeCount;
     private DateTime _lastStatusChangeUtc = DateTime.MinValue;
+    private DateTime _dropsResetLocalDate = DateTime.Now.Date;
 
     public AppSettings Settings { get; private set; }
     public ConnectionStatus LastStatus { get; private set; } = ConnectionStatus.Unknown;
@@ -27,6 +28,9 @@ public class NetNotifierApp : IDisposable
 
     /// <summary>Raised on the check thread after every check. Subscribers must marshal to the UI thread themselves.</summary>
     public event Action? StatusUpdated;
+
+    /// <summary>Raised on the check thread only on a genuine online/offline transition (not on first run). Subscribers must marshal to the UI thread themselves.</summary>
+    public event Action<ConnectionStatus>? StatusChanged;
 
     public NetNotifierApp()
     {
@@ -64,6 +68,7 @@ public class NetNotifierApp : IDisposable
         TotalChecks = 0;
         SuccessfulChecks = 0;
         OnlineSinceUtc = DateTime.UtcNow;
+        _dropsResetLocalDate = DateTime.Now.Date;
         StatusUpdated?.Invoke();
     }
 
@@ -81,6 +86,13 @@ public class NetNotifierApp : IDisposable
         _isChecking = true;
         try
         {
+            var today = DateTime.Now.Date;
+            if (today != _dropsResetLocalDate)
+            {
+                _dropsResetLocalDate = today;
+                DisconnectsToday = 0;
+            }
+
             var status = await DetermineConnectionStatusAsync();
 
             if (status != LastStatus || _firstRun)
@@ -133,8 +145,12 @@ public class NetNotifierApp : IDisposable
 
         if (newStatus == ConnectionStatus.Online)
         {
-            if (Settings.VoiceAlerts && oldStatus != ConnectionStatus.Online && !_firstRun)
-                _speechService.SpeakAsync("Connection Restored");
+            if (oldStatus != ConnectionStatus.Online && !_firstRun)
+            {
+                if (Settings.VoiceAlerts)
+                    _speechService.SpeakAsync("Connection Restored");
+                StatusChanged?.Invoke(ConnectionStatus.Online);
+            }
 
             if (oldStatus != ConnectionStatus.Online || _firstRun)
             {
@@ -144,8 +160,12 @@ public class NetNotifierApp : IDisposable
         }
         else
         {
-            if (Settings.VoiceAlerts && oldStatus != ConnectionStatus.Offline && !_firstRun)
-                _speechService.SpeakAsync("Connection Lost");
+            if (oldStatus != ConnectionStatus.Offline && !_firstRun)
+            {
+                if (Settings.VoiceAlerts)
+                    _speechService.SpeakAsync("Connection Lost");
+                StatusChanged?.Invoke(ConnectionStatus.Offline);
+            }
 
             if (oldStatus == ConnectionStatus.Online && !_firstRun)
                 DisconnectsToday++;
