@@ -15,7 +15,7 @@ public static class Defaults
     public const int MinIntervalMs = 5_000;
     public const int MaxIntervalMs = 300_000;
 
-    public const int HttpTimeoutDefaultMs = 20_000;
+    public const int HttpTimeoutDefaultMs = 10_000;
     public const int HttpTimeoutMinMs = 5_000;
     public const int HttpTimeoutMaxMs = 30_000;
 
